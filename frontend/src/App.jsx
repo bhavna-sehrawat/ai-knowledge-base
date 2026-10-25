@@ -535,69 +535,109 @@ export default function App() {
             if (e.dataTransfer.files?.[0]) handleFileUpload(e.dataTransfer.files[0]);
           }}
         >
-          {/* Action Header Row - Exactly aligned with Drive Assistant header */}
-          <div className="flex h-14 flex-shrink-0 items-center justify-between px-4 sm:px-6 lg:px-8 bg-slate-50">
-            <div className="flex items-center gap-3">
-              <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">
-                Your Drive
-              </h1>
-              <span className="text-xs font-medium text-slate-500">
-                {isLoadingFiles ? (
-                  <span className="inline-block h-3 w-10 rounded bg-slate-200 animate-pulse align-middle" />
-                ) : files.length === 0 ? (
-                  '0 files'
-                ) : (
-                  `${files.length} ${files.length === 1 ? 'file' : 'files'}`
-                )}
-              </span>
+          {/* Action Header Row - Fully responsive for mobile & desktop */}
+          <div className="flex flex-col sm:flex-row sm:h-14 flex-shrink-0 gap-2.5 sm:gap-4 justify-between px-4 sm:px-6 lg:px-8 py-3 sm:py-0 bg-slate-50 border-b border-slate-200/60 sm:border-b-0">
+            {/* Top row on mobile / Left on desktop */}
+            <div className="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap">
+                  Your Drive
+                </h1>
+                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                  {isLoadingFiles ? (
+                    <span className="inline-block h-3 w-10 rounded bg-slate-200 animate-pulse align-middle" />
+                  ) : files.length === 0 ? (
+                    '0 files'
+                  ) : (
+                    `${files.length} ${files.length === 1 ? 'file' : 'files'}`
+                  )}
+                </span>
+              </div>
+
+              {/* On mobile, show action buttons on the right of the title row */}
+              <div className="flex sm:hidden items-center gap-1.5 flex-shrink-0">
+                {/* New Note Button */}
+                <button
+                  type="button"
+                  onClick={() => setShowNoteModal(true)}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
+                  title="New Note"
+                >
+                  <Plus className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Note</span>
+                </button>
+
+                {/* Upload Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
+                  title="Upload File"
+                >
+                  <Upload className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Upload</span>
+                </button>
+
+                {/* AI Assistant Toggle Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(!isChatOpen)}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition cursor-pointer whitespace-nowrap ${isChatOpen
+                    ? 'border border-blue-600 bg-blue-50 text-blue-600 shadow-2xs'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-2xs'
+                    }`}
+                  title="Toggle AI Assistant"
+                >
+                  <span>AI</span>
+                </button>
+              </div>
             </div>
 
-            {/* Action Bar (Search + Buttons) */}
-            <div className="flex items-center gap-2 sm:gap-2.5">
-
-              {/* Search Bar */}
-              <div className="relative">
+            {/* Search Bar & Desktop Actions */}
+            <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+              {/* Search Bar: Full width on mobile, fixed width on desktop */}
+              <div className="relative w-full sm:w-auto flex-1 sm:flex-initial">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Search in drive..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-40 sm:w-52 md:w-60 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                  className="w-full sm:w-48 md:w-60 rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
                 />
               </div>
 
-              {/* New Note Button */}
-              <button
-                type="button"
-                onClick={() => setShowNoteModal(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer"
-              >
-                <Plus className="h-4 w-4 text-slate-500" />
-                <span>New Note</span>
-              </button>
+              {/* Desktop Actions (hidden on mobile, shown on sm+) */}
+              <div className="hidden sm:flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNoteModal(true)}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
+                >
+                  <Plus className="h-4 w-4 text-slate-500" />
+                  <span>New Note</span>
+                </button>
 
-              {/* Upload Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer"
-              >
-                <Upload className="h-4 w-4 text-slate-500" />
-                <span>Upload</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 shadow-xs hover:border-slate-300 hover:bg-slate-50 transition cursor-pointer whitespace-nowrap"
+                >
+                  <Upload className="h-4 w-4 text-slate-500" />
+                  <span>Upload</span>
+                </button>
 
-              {/* AI Assistant Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setIsChatOpen(!isChatOpen)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer ${isChatOpen
-                  ? 'border border-blue-600 bg-blue-50 text-blue-600 shadow-xs'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-xs'
-                  }`}
-              >
-                <span>AI Assistant</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setIsChatOpen(!isChatOpen)}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-semibold transition cursor-pointer whitespace-nowrap ${isChatOpen
+                    ? 'border border-blue-600 bg-blue-50 text-blue-600 shadow-xs'
+                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-xs'
+                    }`}
+                >
+                  <span>AI Assistant</span>
+                </button>
+              </div>
 
               <input
                 type="file"
