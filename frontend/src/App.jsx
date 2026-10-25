@@ -18,10 +18,10 @@ import {
   Eye,
   Copy,
   Check,
+  Trash2,
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
-console.log('API Base URL:', API_BASE);
 
 const USERS = [
   { id: 'ada', name: 'Ada Lovelace', badge: 'AL', bg: 'bg-purple-600' },
@@ -52,6 +52,7 @@ export default function App() {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteContent, setNoteContent] = useState('');
   const [noteCategory, setNoteCategory] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
 
   // 4. AI Assistant Chat State
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -74,6 +75,8 @@ export default function App() {
     error: null,
   });
   const [copiedPreview, setCopiedPreview] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState(null);
+  const [fileToDelete, setFileToDelete] = useState(null);
 
   async function openFilePreview(file) {
     if (!file) return;
@@ -128,6 +131,46 @@ export default function App() {
     navigator.clipboard.writeText(previewModal.data.content);
     setCopiedPreview(true);
     setTimeout(() => setCopiedPreview(false), 2000);
+  }
+
+  function handleDeleteFile(file) {
+    if (!file) return;
+    setFileToDelete(file);
+  }
+
+  async function confirmDeleteFile() {
+    if (!fileToDelete || deletingFileId) return;
+    const file = fileToDelete;
+
+    setDeletingFileId(file.id);
+    try {
+      const res = await fetch(
+        `${API_BASE}/files/${file.id}?userId=${encodeURIComponent(file.user_id || currentUser.id)}`,
+        { method: 'DELETE' }
+      );
+
+      if (res.ok) {
+        setBannerNotice({
+          type: 'success',
+          text: `Deleted "${file.filename}".`,
+        });
+        if (previewModal.isOpen && previewModal.file?.id === file.id) {
+          closeFilePreview();
+        }
+        setFiles((prev) => prev.filter((f) => f.id !== file.id));
+        setFileToDelete(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setBannerNotice({
+          type: 'error',
+          text: data.error || 'Failed to delete file.',
+        });
+      }
+    } catch (err) {
+      setBannerNotice({ type: 'error', text: 'Failed to delete file.' });
+    } finally {
+      setDeletingFileId(null);
+    }
   }
 
   function getFileTypeBadge(filename = '') {
@@ -193,6 +236,19 @@ export default function App() {
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [previewModal.isOpen]);
+
+  // Close delete modal on Escape key
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' && !deletingFileId) {
+        setFileToDelete(null);
+      }
+    }
+    if (fileToDelete) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fileToDelete, deletingFileId]);
 
   // Fetch Drive Files when User Changes
   useEffect(() => {
@@ -300,15 +356,20 @@ export default function App() {
   // Save Quick Text Note
   async function handleSaveNote(e) {
     e.preventDefault();
-    if (!noteContent.trim()) return;
+    if (isSavingNote) return;
+    if (!noteContent.trim() || !noteCategory.trim()) {
+      setBannerNotice({ type: 'error', text: 'Both note content and a category tag are required.' });
+      return;
+    }
 
+    setIsSavingNote(true);
     try {
       const res = await fetch(`${API_BASE}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: noteContent,
-          metadata: { category: noteCategory || 'General Note' },
+          content: noteContent.trim(),
+          metadata: { category: noteCategory.trim() },
           userId: currentUser.id,
         }),
       });
@@ -322,9 +383,14 @@ export default function App() {
         setNoteCategory('');
         setShowNoteModal(false);
         fetchDriveFiles(currentUser.id);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setBannerNotice({ type: 'error', text: data.error || 'Failed to save note.' });
       }
     } catch (err) {
       setBannerNotice({ type: 'error', text: 'Failed to save note.' });
+    } finally {
+      setIsSavingNote(false);
     }
   }
 
@@ -690,20 +756,39 @@ export default function App() {
                             {new Date(file.created_at).toLocaleDateString()}
                           </td>
                           <td className="px-4 sm:px-6 py-3.5 text-right">
-                            {file.status === 'completed' && (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {file.status === 'completed' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openFilePreview(file);
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 shadow-2xs opacity-80 sm:opacity-0 group-hover:opacity-100 hover:border-slate-300 hover:text-blue-600 transition cursor-pointer"
+                                  title="Preview content"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  <span className="hidden md:inline">Preview</span>
+                                </button>
+                              )}
                               <button
                                 type="button"
+                                disabled={deletingFileId === file.id}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  openFilePreview(file);
+                                  handleDeleteFile(file);
                                 }}
-                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 shadow-2xs opacity-80 sm:opacity-0 group-hover:opacity-100 hover:border-slate-300 hover:text-blue-600 transition cursor-pointer"
-                                title="Preview content"
+                                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-2xs opacity-80 sm:opacity-0 group-hover:opacity-100 hover:border-red-300 hover:bg-red-50 disabled:opacity-50 transition cursor-pointer"
+                                title="Delete file"
                               >
-                                <Eye className="h-3.5 w-3.5" />
-                                <span className="hidden md:inline">Preview</span>
+                                {deletingFileId === file.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin text-red-600" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                                <span className="hidden md:inline">Delete</span>
                               </button>
-                            )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -758,19 +843,7 @@ export default function App() {
                     {msg.text}
                   </div>
 
-                  {/* Sources Tag Chips */}
-                  {msg.sources && msg.sources.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {msg.sources.map((src, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center rounded-md border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700"
-                        >
-                          📎 {src}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+
                 </div>
               ))}
 
@@ -815,41 +888,65 @@ export default function App() {
               </h3>
               <button
                 type="button"
+                disabled={isSavingNote}
                 onClick={() => setShowNoteModal(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 disabled:opacity-50 transition cursor-pointer"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
             <form onSubmit={handleSaveNote} className="mt-4 flex flex-col gap-3.5">
-              <textarea
-                rows="4"
-                placeholder="Type your private notes here..."
-                value={noteContent}
-                onChange={(e) => setNoteContent(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 p-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
-              />
-              <input
-                type="text"
-                placeholder="Category tag (e.g. Policy, WiFi, Memo)"
-                value={noteCategory}
-                onChange={(e) => setNoteCategory(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
-              />
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Note Content <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows="4"
+                  placeholder="Type your private notes here..."
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Category Tag <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Policy, WiFi, Memo"
+                  value={noteCategory}
+                  onChange={(e) => setNoteCategory(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition"
+                />
+              </div>
+
               <div className="mt-2 flex justify-end gap-2">
                 <button
                   type="button"
+                  disabled={isSavingNote}
                   onClick={() => setShowNoteModal(false)}
-                  className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-xs hover:bg-blue-700 transition cursor-pointer"
+                  disabled={!noteContent.trim() || !noteCategory.trim() || isSavingNote}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-1.5 text-xs sm:text-sm font-semibold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
                 >
-                  Save to Drive
+                  {isSavingNote ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save to Drive</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -946,6 +1043,23 @@ export default function App() {
                   </button>
                 )}
 
+                {previewModal.file && (
+                  <button
+                    type="button"
+                    disabled={deletingFileId === previewModal.file.id}
+                    onClick={() => handleDeleteFile(previewModal.file)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 shadow-2xs hover:border-red-300 hover:bg-red-50 disabled:opacity-50 transition cursor-pointer"
+                    title="Delete file"
+                  >
+                    {deletingFileId === previewModal.file.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-red-600" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                    <span>Delete</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={closeFilePreview}
@@ -992,6 +1106,65 @@ export default function App() {
                 className="rounded-lg border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:border-slate-300 transition cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= 8. DELETE CONFIRMATION MODAL ================= */}
+      {fileToDelete && (
+        <div
+          onClick={() => !deletingFileId && setFileToDelete(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl text-center relative"
+          >
+            <button
+              type="button"
+              disabled={deletingFileId}
+              onClick={() => setFileToDelete(null)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 disabled:opacity-50 transition cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 mb-3 border border-red-100">
+              <Trash2 className="h-5 w-5" />
+            </div>
+
+            <h3 className="text-base font-bold text-slate-900">
+              Delete File?
+            </h3>
+            <p className="mt-2 text-xs sm:text-sm text-slate-500 leading-relaxed">
+              Are you sure you want to delete <span className="font-semibold text-slate-800 break-all">"{fileToDelete.filename}"</span>? This will permanently remove it from your knowledge base.
+            </p>
+
+            <div className="mt-5 flex gap-2.5">
+              <button
+                type="button"
+                disabled={deletingFileId}
+                onClick={() => setFileToDelete(null)}
+                className="flex-1 rounded-lg border border-slate-200 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deletingFileId}
+                onClick={confirmDeleteFile}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50 transition cursor-pointer"
+              >
+                {deletingFileId ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <span>Delete</span>
+                )}
               </button>
             </div>
           </div>

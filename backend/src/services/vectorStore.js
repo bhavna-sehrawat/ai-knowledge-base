@@ -220,3 +220,19 @@ export async function getFilePreview(filename, userId = 'guest') {
     throw err;
   }
 }
+
+// Delete indexed document vectors by filename and userId
+export async function deleteDocumentVectors(filename, userId = 'guest') {
+  try {
+    await pool.query(
+      `DELETE FROM knowledge_vectors
+       WHERE LOWER(metadata->>'filename') = LOWER($1)
+         AND (metadata->>'userId' = $2 OR metadata->>'userId' IS NULL);`,
+      [filename, userId]
+    );
+    return { success: true };
+  } catch (err) {
+    console.error('Error deleting document vectors:', err);
+    throw err;
+  }
+}

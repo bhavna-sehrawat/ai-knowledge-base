@@ -64,3 +64,14 @@ export async function getAllJobs(userId = 'guest') {
   );
   return result.rows;
 }
+
+// 6. Delete a job record
+export async function deleteJob(jobId, userId = 'guest') {
+  const result = await pool.query(
+    `DELETE FROM ingestion_jobs
+     WHERE id = $1 AND user_id = $2
+     RETURNING id, filename, user_id;`,
+    [jobId, userId]
+  );
+  return result.rows[0];
+}

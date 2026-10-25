@@ -37,8 +37,8 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { processFileToChunks } from './services/documentProcessor.js';
-import { saveDocument, saveMultipleDocuments, askQuestion, getFilePreview } from './services/vectorStore.js';
-import { createJob, createCompletedJob, completeJob, failJob, getJobById, getAllJobs } from './services/jobService.js';
+import { saveDocument, saveMultipleDocuments, askQuestion, getFilePreview, deleteDocumentVectors } from './services/vectorStore.js';
+import { createJob, createCompletedJob, completeJob, failJob, getJobById, getAllJobs, deleteJob } from './services/jobService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -68,9 +68,11 @@ app.post('/api/documents', async (req, res) => {
       return res.status(400).json({ error: "Content is required." });
     }
 
-    const noteTitle = metadata?.category && metadata.category.trim()
-      ? `Note: ${metadata.category.trim()}`
-      : `Note: ${content.trim().slice(0, 35)}${content.trim().length > 35 ? '...' : ''}`;
+    if (!metadata?.category || !metadata.category.trim()) {
+      return res.status(400).json({ error: "Category tag is required." });
+    }
+
+    const noteTitle = `Note: ${metadata.category.trim()}`;
 
     const docMetadata = { ...(metadata || {}), filename: noteTitle, userId };
     await saveDocument(content, docMetadata);
@@ -153,6 +155,34 @@ app.get('/api/files/preview', async (req, res) => {
   } catch (err) {
     console.error("Preview fetch error:", err);
     res.status(500).json({ error: "Failed to load file preview." });
+  }
+});
+
+// 3c. Delete File and its vector embeddings
+app.delete('/api/files/:id', async (req, res) => {
+  try {
+    const jobId = req.params.id;
+    const userId = req.query.userId || req.body?.userId || 'guest';
+
+    const job = await getJobById(jobId);
+    if (!job) {
+      return res.status(404).json({ error: "File not found." });
+    }
+
+    if (job.user_id !== userId) {
+      return res.status(403).json({ error: "Unauthorized to delete this file." });
+    }
+
+    // 1. Delete vectors
+    await deleteDocumentVectors(job.filename, userId);
+
+    // 2. Delete job record
+    await deleteJob(jobId, userId);
+
+    res.json({ message: "File deleted successfully.", id: jobId, filename: job.filename });
+  } catch (err) {
+    console.error("Failed to delete file:", err);
+    res.status(500).json({ error: "Failed to delete file." });
   }
 });
 
