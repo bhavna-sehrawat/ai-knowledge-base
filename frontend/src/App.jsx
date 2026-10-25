@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000/api';
+console.log('API Base URL:', API_BASE);
 
 const USERS = [
   { id: 'ada', name: 'Ada Lovelace', badge: 'AL', bg: 'bg-purple-600' },
